@@ -1,11 +1,29 @@
+import getopt
+import glob
 import os
 import random
-import re
-import sys
-import getopt
+
+import jinja2
 import mp3_tagger
+import sys
 import time
-import traceback
+from jinja2 import Environment
+
+from config import *
+from song import Song
+
+
+def get_filenames(path='', extension='.mp3'):
+    if path[-1] == '/' or path[-1] == '\\':
+        path = path + '*' + extension
+    elif len(path) > 0:
+        path = path + '/*' + extension
+
+    filenames = glob.glob(pathname=path)
+    result = [filename for filename in filenames]
+    result.sort()
+    return result
+
 
 def main(argv):
     cesta = os.getcwd()
@@ -31,78 +49,28 @@ def main(argv):
 
     print(cesta)
     print(n)
-    subory = os.listdir(cesta)
-    subory.sort()
+    subory = get_filenames(cesta)
     subory.pop(0)
     random.seed(n)
     random.shuffle(subory)
     i = 1
-    zoznam = '''---
-layout: default
-title: Playlist Bárjaké reďkovky
----
-# Bárjaké reďkovky
-
-
-Toto je aktuálna forma playlistu Bárjaké reďkovky z dňa %s:  
-
-*Nultý (000) sondžik je ako vždy Bon Jovi - You Give Love a Bad Name*  
-''' % time.asctime(time.localtime(time.time()))
+    songs = []
     for s in subory:
-        if s == "barjake_redkovky.md":
-            continue
-
         try:
-            mp3 = mp3_tagger.MP3File(cesta + "\\" + s, )
-            mp3.set_version(mp3_tagger.VERSION_2)
-            try:
-                tagy = mp3.get_tags()
-            except AttributeError:
-                tagy = {'artist': mp3.artist, 'song': mp3.song}
-
-            if 'artist' not in tagy or 'song' not in tagy:
-                print("Chybajuce tagy v subore " + s)
-            try:
-                umelec = str(tagy['artist']).strip()
-            except KeyError:
-                if oprav_chybajuce:
-                    print("Zadaj novy nazov umelca: ")
-                    umelec = input()
-                    mp3.artist = umelec
-                    mp3.save()
-            try:
-                nazov = str(tagy['song'])
-            except KeyError:
-                if oprav_chybajuce:
-                    print("Zadaj novy nazov piesne: ")
-                    nazov = input()
-                    mp3.song = nazov
-                    mp3.save()
-
-            if umelec[-1] == '\0':
-                umelec = umelec[:-1]
-            if nazov[-1] == '\0':
-                nazov = nazov[:-1]
-
-            zoznam += (("%d. **" % i) + umelec + "** - " + nazov + "\n")
-            print(re.sub("^[^a-zA-Z]*", "{0:0=3d}".format(i) + "_", s))
-            os.rename(cesta + "\\" + s, cesta + "\\" + re.sub("^[^a-zA-Z]*", "{0:0=3d}".format(i) + "_", s))
+            song = Song(s)
+            song.update_file_position(i)
+            songs.append(song)
             i += 1
         except mp3_tagger.MP3OpenFileError:
             print("CHYBA: %d bohuzial nie je .mp3" % i)
         except (UnicodeDecodeError, AttributeError) as e:
             print(e)
-            zoznam += (("%d. " % i) + s + "\n")
             i += 1
 
-    print("Pouzity seed: " + str(n))
-    zoznam += ('''
-
-Použitý seed: ```%d```
-''' % int(n))
-    zoznam_md = open(cesta + "/barjake_redkovky.md", "w", encoding="utf-8")
-    zoznam_md.write(zoznam)
-    zoznam_md.close()
+    template_env = Environment(loader=jinja2.loaders.FileSystemLoader(TEMPLATE_FOLDER))
+    template = template_env.get_template(TEMPLATE_NAME)
+    template.stream(songs=songs, seed=n, time=str(time.asctime(time.localtime(time.time())))).dump(
+        cesta + "/barjake_redkovky.md")
 
 
 if __name__ == "__main__":
