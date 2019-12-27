@@ -26,7 +26,7 @@ def get_filenames(path='', extension='.mp3'):
 
 
 def main(argv):
-    cesta = os.getcwd()
+    cesta = None
     n = random.randrange(sys.maxsize)
     oprav_chybajuce = True
 
@@ -47,7 +47,10 @@ def main(argv):
         elif opt in ("-f",):
             oprav_chybajuce = False
 
+    if cesta is None:
+        cesta = input("Zadajte cestu k priecinku: ")
     print(cesta)
+    assert os.path.isdir(cesta), "Neplatna cesta k priecinku: " + cesta
     print(n)
     subory = get_filenames(cesta)
     subory.pop(0)
